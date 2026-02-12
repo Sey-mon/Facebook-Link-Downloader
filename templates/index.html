@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Video Downloader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📥 Facebook Video Downloader</h1>
+            <p>Download Facebook videos in your preferred quality</p>
+        </div>
+        
+        <div class="card">
+            <div class="input-group">
+                <input 
+                    type="url" 
+                    id="videoUrl" 
+                    placeholder="Paste Facebook video URL here..."
+                    required
+                >
+                <button id="fetchBtn" onclick="fetchVideoInfo()">Get Info</button>
+            </div>
+            
+            <div id="status" class="status"></div>
+            
+            <div id="infoSection" class="info-section">
+                <div class="video-preview">
+                    <div class="thumbnail">
+                        <img id="thumbnail" src="" alt="Thumbnail">
+                    </div>
+                    <div class="video-details">
+                        <h3 id="videoTitle">Video Title</h3>
+                        <p id="videoDuration">Duration: --</p>
+                        <p id="videoSource">Source: Facebook</p>
+                    </div>
+                </div>
+                
+                <div class="format-group">
+                    <label>Select Quality:</label>
+                    <div class="format-options" id="formatOptions"></div>
+                </div>
+                
+                <button id="downloadBtn" onclick="downloadVideo()" style="width: 100%; padding: 14px;">
+                    Download Video
+                </button>
+            </div>
+        </div>
+        
+        <div class="card download-section-title">
+            <h3>📂 Downloaded Videos</h3>
+            <ul class="download-list" id="downloadsList">
+                <li style="color: #999; padding: 20px; text-align: center;">No downloads yet</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
