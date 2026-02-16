@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, Response
 from whitenoise import WhiteNoise
 import yt_dlp
 import os
 from pathlib import Path
-import threading
+import tempfile
+import uuid
 
 app = Flask(__name__)
 
@@ -11,9 +12,9 @@ app = Flask(__name__)
 app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/', prefix='static/')
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
-# Create downloads folder
-DOWNLOAD_FOLDER = Path("downloads")
-DOWNLOAD_FOLDER.mkdir(exist_ok=True)
+# Use temporary directory for downloads
+TEMP_FOLDER = Path(tempfile.gettempdir()) / 'fb_downloader'
+TEMP_FOLDER.mkdir(exist_ok=True)
 
 @app.route('/')
 def index():
@@ -78,7 +79,7 @@ def get_info():
 
 @app.route('/download', methods=['POST'])
 def download():
-    """Download the video"""
+    """Download the video directly to user's device"""
     url = request.json.get('url')
     format_id = request.json.get('format_id', 'best')
     
@@ -89,9 +90,12 @@ def download():
         # Use format_id if provided, otherwise use best
         format_spec = format_id if format_id != 'best' else 'best[ext=mp4]/best'
         
+        # Generate unique filename to avoid conflicts
+        unique_id = str(uuid.uuid4())[:8]
+        
         ydl_opts = {
             'format': format_spec,
-            'outtmpl': str(DOWNLOAD_FOLDER / '%(title)s.%(ext)s'),
+            'outtmpl': str(TEMP_FOLDER / f'{unique_id}_%(title)s.%(ext)s'),
             'quiet': False,
             'no-warnings': True,
             'socket_timeout': 30,
@@ -102,48 +106,47 @@ def download():
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+            filepath = ydl.prepare_filename(info)
             
+            # Return the download URL
+            filename = os.path.basename(filepath)
             return jsonify({
                 'success': True,
-                'message': f'Successfully downloaded: {info.get("title")}',
-                'filename': os.path.basename(filename)
+                'download_url': f'/get-file/{filename}',
+                'filename': filename.replace(f'{unique_id}_', '')  # Clean filename for user
             })
     
     except Exception as e:
         return jsonify({'error': f'Download failed: {str(e)}'}), 400
 
-@app.route('/downloads', methods=['GET'])
-def list_downloads():
-    """List downloaded files"""
+@app.route('/get-file/<filename>', methods=['GET'])
+def get_file(filename):
+    """Serve file for download to user's device and delete after sending"""
     try:
-        files = list(DOWNLOAD_FOLDER.glob('*'))
-        downloads = [
-            {
-                'name': f.name,
-                'size': f.stat().st_size / (1024*1024),  # Convert to MB
-                'path': f'/download-file/{f.name}'
-            }
-            for f in files if f.is_file()
-        ]
-        downloads.sort(key=lambda x: x['name'])
-        return jsonify(downloads)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
-@app.route('/download-file/<filename>', methods=['GET'])
-def download_file(filename):
-    """Serve file for download to user's device"""
-    try:
-        file_path = DOWNLOAD_FOLDER / filename
+        file_path = TEMP_FOLDER / filename
         if not file_path.exists():
-            return jsonify({'error': 'File not found'}), 404
+            return jsonify({'error': 'File not found or expired'}), 404
         
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=filename,
-            mimetype='video/mp4'
+        # Clean up the unique ID from filename for user
+        clean_filename = filename.split('_', 1)[1] if '_' in filename else filename
+        
+        def generate():
+            with open(file_path, 'rb') as f:
+                while chunk := f.read(8192):
+                    yield chunk
+            # Delete file after sending
+            try:
+                os.remove(file_path)
+            except:
+                pass
+        
+        return Response(
+            generate(),
+            mimetype='video/mp4',
+            headers={
+                'Content-Disposition': f'attachment; filename="{clean_filename}"',
+                'Content-Length': str(os.path.getsize(file_path))
+            }
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 400

@@ -122,7 +122,7 @@ async function downloadVideo() {
 
   const downloadBtn = document.getElementById("downloadBtn");
   downloadBtn.disabled = true;
-  showStatus("Downloading video... This may take a few minutes.", "loading");
+  showStatus("Preparing download... This may take a few minutes.", "loading");
 
   try {
     const response = await fetch("/download", {
@@ -141,9 +141,20 @@ async function downloadVideo() {
     if (data.error) {
       showStatus(data.error, "error");
     } else {
-      showStatus("✓ " + data.message, "success");
-      await loadDownloadsList();
-      setTimeout(() => hideStatus(), 3000);
+      showStatus("✓ Download ready! Starting download...", "success");
+      
+      // Trigger download immediately
+      const link = document.createElement('a');
+      link.href = data.download_url;
+      link.download = data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setTimeout(() => {
+        showStatus("✓ Video downloaded to your device!", "success");
+        setTimeout(() => hideStatus(), 3000);
+      }, 500);
     }
   } catch (error) {
     showStatus(`Error: ${error.message}`, "error");
@@ -152,38 +163,7 @@ async function downloadVideo() {
   }
 }
 
-async function loadDownloadsList() {
-  try {
-    const response = await fetch("/downloads");
-    const downloads = await response.json();
-
-    const list = document.getElementById("downloadsList");
-
-    if (downloads.length === 0) {
-      list.innerHTML =
-        '<li style="color: #999; padding: 20px; text-align: center;">No downloads yet</li>';
-      return;
-    }
-
-    list.innerHTML = downloads
-      .map(
-        (file) => `
-                    <li class="download-item">
-                        <div class="download-item-info">
-                            <div class="download-item-name">📹 ${file.name}</div>
-                            <div class="download-item-size">${file.size.toFixed(1)} MB</div>
-                        </div>
-                    </li>
-                `,
-      )
-      .join("");
-  } catch (error) {
-    console.error("Error loading downloads:", error);
-  }
-}
-
-// Load downloads list on page load
-window.addEventListener("load", loadDownloadsList);
+// Removed downloads list functionality - files now download directly to user's device
 
 // Allow Enter key to fetch info
 document.getElementById("videoUrl").addEventListener("keypress", (e) => {
