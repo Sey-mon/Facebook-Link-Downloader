@@ -1,10 +1,15 @@
 from flask import Flask, render_template, request, jsonify, send_file
+from whitenoise import WhiteNoise
 import yt_dlp
 import os
 from pathlib import Path
 import threading
 
 app = Flask(__name__)
+
+# Configure static files for production with WhiteNoise
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/', prefix='static/')
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 # Create downloads folder
 DOWNLOAD_FOLDER = Path("downloads")
